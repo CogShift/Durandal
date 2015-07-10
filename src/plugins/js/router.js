@@ -1050,7 +1050,7 @@ define(['durandal/system', 'durandal/app', 'durandal/activator', 'durandal/event
 
             var rootStripper = rootRouter.options.root && new RegExp("^" + rootRouter.options.root + "/");
 
-            $(document).delegate("a", 'click', function(evt){
+            $(document).delegate("a:not(.router-ignore)", 'click', function(evt){
                 
                 // ignore default prevented since these are not supposed to behave like links anyway
                 if(evt.isDefaultPrevented()){
