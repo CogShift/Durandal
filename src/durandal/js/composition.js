@@ -1,4 +1,9 @@
 /**
+ * Durandal 2.1.0 Copyright (c) 2012 Blue Spire Consulting, Inc. All Rights Reserved.
+ * Available via the MIT license.
+ * see: http://durandaljs.com or https://github.com/BlueSpire/Durandal for details.
+ */
+/**
  * The composition module encapsulates all functionality related to visual composition.
  * @module composition
  * @requires system
@@ -505,7 +510,7 @@ define(['durandal/system', 'durandal/viewLocator', 'durandal/binder', 'durandal/
                             hide(child);
                             ko.virtualElements.prepend(context.parent, child);
 
-                        binder.bindContext(context.bindingContext, child, context.model, context.as);
+                            binder.bindContext(context.bindingContext, child, context.model, context.as);
                         }
                     } else if (child) {
                         var modelToBind = context.model || dummyModel;
@@ -527,7 +532,7 @@ define(['durandal/system', 'durandal/viewLocator', 'durandal/binder', 'durandal/
                             hide(child);
                             ko.virtualElements.prepend(context.parent, child);
 
-                            binder.bind(modelToBind, child);
+		                    binder.bind(modelToBind, child);
                         }
                     }
 
@@ -668,14 +673,38 @@ define(['durandal/system', 'durandal/viewLocator', 'durandal/binder', 'durandal/
             }
 
             if (!settings.model) {
-                if (!settings.view) {
-                    this.bindAndShow(null, element, settings);
+            	if (settings.template) {
+            		var templateView = ko.utils.unwrapObservable(settings.template),
+						templateName = settings.name || templateView.replace(/[^a-zA-Z0-9]/g, "-");
+
+            		viewLocator.locateView(templateView, settings.area).then(function (child) {
+						// Check if a matching script block already exists for this template in the document.
+			            var script = document.getElementById(templateName);
+
+						// if it doesn't, create it now and append it to the body.
+			            if (!script) {
+			            	script = document.createElement("script");
+			            	script.type = "text/html";
+			            	script.id = templateName;
+			            	document.body.appendChild(script);
+						}
+
+						// If the template view has changed, then change the contents of the script block.
+			            if (script.getAttribute("data-template") !== templateView) {
+			            	script.innerHTML = child.outerHTML;
+				            script.setAttribute("data-template", templateView);
+			            }
+
+			            endComposition(settings, element);
+		            });
+            	} else if (!settings.view) {
+                	this.bindAndShow(null, element, settings);
                 } else {
                     settings.area = settings.area || 'partial';
                     settings.preserveContext = true;
 
                     viewLocator.locateView(settings.view, settings.area, settings.viewElements).then(function (child) {
-                        composition.bindAndShow(child, element, settings);
+	                    composition.bindAndShow(child, element, settings);
                     });
                 }
             } else if (system.isString(settings.model)) {
@@ -691,13 +720,38 @@ define(['durandal/system', 'durandal/viewLocator', 'durandal/binder', 'durandal/
         }
     };
 
-    ko.bindingHandlers.compose = {
+    var template = ko.bindingHandlers.template;
+
+    ko.bindingHandlers.template = {
+    	init: function (element, valueAccessor) {
+		    var that = this,
+		        options = valueAccessor();
+
+		    if (options.view) {
+				// encodes the view path into a valid template ID.
+		    	options.name = options.view.replace(/[^a-zA-Z0-9]/g, "-");
+		    }
+
+		    return template.init.apply(that, arguments);
+	    },
+
+    	update: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+    		var that = this;
+
+    		var result = template.update.apply(that, arguments);
+
+    		return result;
+	    }
+    }	
+
+	ko.bindingHandlers.compose = {
         init: function() {
             return { controlsDescendantBindings: true };
         },
         update: function (element, valueAccessor, allBindingsAccessor, viewModel, bindingContext) {
-            var settings = composition.getSettings(valueAccessor, element);
-            if(settings.mode){
+        	var settings = composition.getSettings(valueAccessor, element);
+
+	        if(settings.mode){
                 var data = ko.utils.domData.get(element, compositionDataKey);
                 if(!data){
                     var childNodes = ko.virtualElements.childNodes(element);
