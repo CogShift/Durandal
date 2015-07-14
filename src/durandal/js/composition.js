@@ -24,6 +24,7 @@ define(['durandal/system', 'durandal/viewLocator', 'durandal/binder', 'durandal/
         partAttributeName = 'data-part',
         bindableSettings = ['model', 'view', 'transition', 'area', 'strategy', 'activationData', 'onError'],
         visibilityKey = "durandal-visibility-data",
+		deferredTemplates = [],
         composeBindings = ['compose:'];
     
     function onError(context, error, element) {
@@ -72,23 +73,38 @@ define(['durandal/system', 'durandal/viewLocator', 'durandal/binder', 'durandal/
     function endComposition(context, element, error) {
         compositionCount--;
 
-        if(compositionCount === 0) {
-            var callBacks = compositionCompleteCallbacks;
-            compositionCompleteCallbacks = [];
-            
-            if (!error) {
-                setTimeout(function () {
-                    var i = callBacks.length;
+        if (compositionCount === 0) {
+        	// If composition has completed, any async retrieved template content should be loaded into the view.
+        	// If there were any template bindings that have had their "update" handler deferred due their related template
+			// not being loaded yet, execute the deferred "update" function now because the content should loaded.
+        	if (deferredTemplates.length) {
+        		var templates = deferredTemplates.slice(0);
+		        deferredTemplates = [];
+		        for (var j = 0; j < templates.length; j++) {
+		        	var templateArgs = templates[j];
+	        		ko.bindingHandlers.template.update.apply(ko, templateArgs);
+	        	}
+	        }
 
-                    while (i--) {
-                        try {
-                            callBacks[i]();
-                        } catch (e) {
-                            onError(context, e, element);
-                        }
-                    }
-                }, 1);
-            }
+			// Check again if the compositionCount is still 0.  It may have jumped up when the deferred template bindings executed.
+	        if (compositionCount === 0) {
+				var callBacks = compositionCompleteCallbacks;
+				compositionCompleteCallbacks = [];
+            
+				if (!error) {
+					setTimeout(function () {
+						var i = callBacks.length;
+
+						while (i--) {
+							try {
+								callBacks[i]();
+							} catch (e) {
+								onError(context, e, element);
+							}
+						}
+					}, 1);
+				}
+	        }
         }
 
         cleanUp(context);
@@ -738,9 +754,11 @@ define(['durandal/system', 'durandal/viewLocator', 'durandal/binder', 'durandal/
     	update: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
     		var that = this;
 
-    		var result = template.update.apply(that, arguments);
-
-    		return result;
+		    if (compositionCount === 0) {
+			    template.update.apply(that, arguments);
+		    } else {
+			    deferredTemplates.push(arguments);
+		    }
 	    }
     }	
 
