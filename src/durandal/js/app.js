@@ -1,4 +1,9 @@
-﻿/**
+/**
+ * Durandal 2.1.0 Copyright (c) 2012 Blue Spire Consulting, Inc. All Rights Reserved.
+ * Available via the MIT license.
+ * see: http://durandaljs.com or https://github.com/BlueSpire/Durandal for details.
+ */
+/**
  * The app module controls app startup, plugin loading/configuration and root visual display.
  * @module app
  * @requires system
@@ -19,25 +24,39 @@ define(['durandal/system', 'durandal/viewEngine', 'durandal/composition', 'duran
                 return;
             }
 
-            system.acquire(allPluginIds).then(function(loaded){
-                for(var i = 0; i < loaded.length; i++){
-                    var currentModule = loaded[i];
+        	system.acquire(allPluginIds).then(function (loaded) {
+        		var promises = [];
+
+                for(var i = 0; i < loaded.length; i++) {
+	                var currentModule = loaded[i];
 
                     if(currentModule.install){
                         var config = allPluginConfigs[i];
                         if(!system.isObject(config)){
                             config = {};
                         }
-
-                        currentModule.install(config);
-                        system.log('Plugin:Installed ' + allPluginIds[i]);
+	                    (function(promises, currentModule, config, i) {
+	                    	promises.push(
+								$.when(currentModule.install(config))
+									.then(function () {
+										system.log('Plugin:Installed ' + allPluginIds[i]);
+									})
+							);
+	                    })(promises, currentModule, config, i);
                     }else{
                         system.log('Plugin:Loaded ' + allPluginIds[i]);
                     }
                 }
 
-                dfd.resolve();
-            }).fail(function(err){
+		        $.when.apply(null, promises)
+			        .then(function() {
+				        dfd.resolve();
+			        })
+			        .fail(function(error) {
+			        	dfd.reject(error);
+			        });
+
+	        }).fail(function(err){
                 system.error('Failed to load plugin(s). Details: ' + err.message);
             });
         }).promise();
